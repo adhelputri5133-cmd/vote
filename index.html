@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>生成式 AI 決戰擂台｜投票</title>
+<meta name="robots" content="noindex">
+<style>
+  :root {
+    --bg: #0b1020; --panel: #151d36; --panel2: #1b2546; --line: rgba(255,255,255,0.14);
+    --text: #f4f1ea; --muted: #a7adc2; --gold: #f5b942; --gold2: #ffd98a; --ok: #4ade80; --warn: #fb923c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { background: var(--bg); color: var(--text); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+    min-height: 100vh; padding: 20px 16px 120px; max-width: 560px; margin: 0 auto;
+    background: radial-gradient(600px 400px at 0% -10%, rgba(124,156,255,0.16), transparent 60%), var(--bg);
+  }
+  header h1 { font-size: 22px; font-weight: 800; letter-spacing: 0.03em; }
+  header p { color: var(--muted); font-size: 14px; margin-top: 2px; letter-spacing: 0.12em; }
+  .timer {
+    margin-top: 14px; display: none; align-items: center; justify-content: space-between;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-size: 15px;
+  }
+  .timer.show { display: flex; }
+  .timer b { font-variant-numeric: tabular-nums; font-size: 20px; color: var(--gold); }
+  .timer.urgent b { color: var(--warn); }
+
+  .screen { display: none; margin-top: 18px; }
+  .screen.active { display: block; }
+  .center { text-align: center; padding: 48px 8px; }
+  .big-icon { font-size: 64px; line-height: 1; }
+  .center h2 { font-size: 24px; margin-top: 16px; }
+  .center p { color: var(--muted); margin-top: 10px; line-height: 1.7; font-size: 15px; }
+  .center .picked { margin-top: 18px; padding: 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); color: var(--gold2); font-weight: 700; }
+
+  .hint { color: var(--muted); font-size: 14px; margin-bottom: 10px; }
+  .works { display: grid; gap: 10px; }
+  .work {
+    width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+    background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 14px 16px;
+    display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; min-height: 64px;
+  }
+  .work .no { font-weight: 800; color: var(--gold2); font-variant-numeric: tabular-nums; min-width: 2em; }
+  .work .name { font-size: 17px; font-weight: 700; line-height: 1.35; }
+  .work .team { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .work .radio { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--muted); }
+  .work.sel { border-color: var(--gold); background: var(--panel2); }
+  .work.sel .radio { border-color: var(--gold); background: radial-gradient(circle, var(--gold) 45%, transparent 50%); }
+
+  .bar {
+    position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, rgba(11,16,32,0), rgba(11,16,32,0.96) 30%); display: none;
+  }
+  .bar.show { display: block; }
+  .bar .inner { max-width: 528px; margin: 0 auto; }
+  .btn {
+    width: 100%; font: inherit; font-size: 18px; font-weight: 800; border: 0; border-radius: 14px; padding: 16px;
+    background: var(--gold); color: #1d1405; cursor: pointer; letter-spacing: 0.1em;
+  }
+  .btn:disabled { background: #3a4260; color: #8a90a6; cursor: default; }
+  .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); font-size: 16px; margin-top: 18px; }
+  .status-line { text-align: center; font-size: 14px; color: var(--muted); min-height: 1.4em; margin-bottom: 8px; }
+  .spin { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--muted); border-top-color: var(--gold); border-radius: 50%; animation: s 0.8s linear infinite; vertical-align: -3px; margin-right: 6px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  .foot { margin-top: 28px; color: #6b7290; font-size: 12px; text-align: center; line-height: 1.6; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">生成式 AI 決戰擂台</h1>
+  <p id="subtitle">現場即時投票</p>
+  <div class="timer" id="timer"><span>剩餘時間</span><b id="timerText">--:--</b></div>
+</header>
+
+<section class="screen active" id="s-loading"><div class="center"><div class="spin"></div> 載入中…</div></section>
+
+<section class="screen" id="s-waiting">
+  <div class="center">
+    <div class="big-icon">⏳</div>
+    <h2>投票尚未開始</h2>
+    <p>請留在這個畫面，開始後會自動顯示作品。</p>
+    <button class="btn ghost" id="btnRefresh">重新整理</button>
+  </div>
+</section>
+
+<section class="screen" id="s-vote">
+  <p class="hint">選一件你心中的最佳作品，再按下方「確認投票」。每支手機只能投一次。</p>
+  <div class="works" id="works"></div>
+</section>
+
+<section class="screen" id="s-done">
+  <div class="center">
+    <div class="big-icon">✅</div>
+    <h2 id="doneTitle">投票成功！</h2>
+    <div class="picked" id="donePick"></div>
+    <p>請看大螢幕，等待揭曉結果。</p>
+  </div>
+</section>
+
+<section class="screen" id="s-closed">
+  <div class="center">
+    <div class="big-icon">🔒</div>
+    <h2 id="closedTitle">投票已截止</h2>
+    <p id="closedMsg">謝謝參與，結果請看大螢幕。</p>
+  </div>
+</section>
+
+<section class="screen" id="s-error">
+  <div class="center">
+    <div class="big-icon">⚠️</div>
+    <h2>連線不穩</h2>
+    <p id="errMsg">請確認網路後再試一次。</p>
+    <button class="btn ghost" id="btnRetryLoad">再試一次</button>
+  </div>
+</section>
+
+<div class="bar" id="bar">
+  <div class="inner">
+    <div class="status-line" id="statusLine"></div>
+    <button class="btn" id="btnSubmit" disabled>請先選擇作品</button>
+  </div>
+</div>
+
+<div class="foot" id="foot"></div>
+
+<script>
+  // ===== 你的 Apps Script 網址（部署時「管理部署作業」裡的網頁應用程式網址，結尾是 /exec）=====
+  window.API_URL = 'https://script.google.com/macros/s/AKfycbx2yX_kO5nDew0r_xRfUiOFpLQgDHBHCMyhNtQL_tamdaJU6-wzfpZgrArXPYf6tkjswQ/exec';
+  window.__BALLOT__ = null;
+</script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const hasGAS = typeof google !== 'undefined' && google.script && google.script.run;
+  let ballot = window.__BALLOT__ || null;
+  let selected = null;
+  let endAt = 0, timerTimer = null, pollTimer = null;
+  let submitting = false;
+
+  // ---------- 手機碼：第一次開啟時產生，存在這支手機的瀏覽器 ----------
+  const memStore = {};
+  function store(k, v) {
+    try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); }
+    catch (e) { if (v === undefined) return memStore[k] || null; memStore[k] = v; }
+  }
+  function randomId() {
+    const b = new Uint8Array(16);
+    (window.crypto || window.msCrypto).getRandomValues(b);
+    return btoa(String.fromCharCode.apply(null, b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  let deviceId = store('vote.deviceId');
+  if (!deviceId || !/^[A-Za-z0-9_-]{16,64}$/.test(deviceId)) { deviceId = randomId(); store('vote.deviceId', deviceId); }
+  $('foot').textContent = '手機碼 ' + deviceId.slice(0, 6) + '…（只用來防止重複投票，不含任何個人資料）';
+
+  const votedKey = () => 'vote.voted.' + (ballot && ballot.round || '');
+
+  // ---------- 呼叫伺服器（滿載時自動排隊重試） ----------
+  // 呼叫 Apps Script：不帶任何 Google 登入資訊（credentials: 'omit'），
+  // 所以不管手機登入了幾個 Google 帳號、或完全沒登入，都能正常使用
+  function call(fn, args) {
+    if (window.__MOCK__) return window.__MOCK__.call(fn, args || []);
+    const q = new URLSearchParams({ api: fn === 'getBallot' ? 'ballot' : 'vote', _: Date.now() + '' + Math.floor(Math.random() * 1e6) });
+    if (fn === 'submitVote') { q.set('d', args[0]); q.set('l', args[1]); }
+    const ctrl = window.AbortController ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), 20000) : null;
+    return fetch(window.API_URL + '?' + q.toString(), { method: 'GET', credentials: 'omit', cache: 'no-store', redirect: 'follow', signal: ctrl ? ctrl.signal : undefined })
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(t => { let j; try { j = JSON.parse(t); } catch (e) { throw new Error('伺服器忙碌'); } if (j && j.error) throw new Error(j.error); return j; })
+      .finally(() => { if (timer) clearTimeout(timer); });
+  }
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  async function callRetry(fn, args, onRetry, tries) {
+    tries = tries || 10;   // 最多自動重試約 45 秒
+    let wait = 600;
+    for (let i = 0; i < tries; i++) {
+      try { return await call(fn, args); }
+      catch (e) {
+        if (i === tries - 1) throw e;
+        if (onRetry) onRetry(i + 1);
+        await sleep(wait + Math.random() * wait);   // 隨機錯開，避免大家同時重試
+        wait = Math.min(wait * 1.7, 6000);
+      }
+    }
+  }
+
+  // ---------- 畫面 ----------
+  function show(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+    $('bar').classList.toggle('show', id === 's-vote');
+  }
+
+  function apply(b) {
+    if (!b) { show('s-error'); return; }
+    ballot = b;
+    $('title').textContent = b.title;
+    $('subtitle').textContent = b.subtitle;
+    clearTimeout(pollTimer);
+
+    const voted = store(votedKey());
+    if (voted) { showDone(voted, true); return; }
+
+    if (b.phase === 'open') {
+      setTimer(b.remainingMs);
+      renderWorks(b.works);
+      show('s-vote');
+    } else if (b.phase === 'waiting') {
+      setTimer(null);
+      show('s-waiting');
+      // 等待中慢慢輪詢（5～9 秒隨機），幾百支手機同時等也不會塞爆
+      pollTimer = setTimeout(refresh, 5000 + Math.random() * 4000);
+    } else {
+      setTimer(null);
+      showClosed('投票已截止', '謝謝參與，結果請看大螢幕。');
+    }
+  }
+
+  function renderWorks(works) {
+    const box = $('works');
+    const key = JSON.stringify(works.map(w => w.label));
+    if (box.dataset.key === key) return;
+    box.dataset.key = key;
+    box.innerHTML = '';
+    works.forEach(w => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'work' + (selected === w.label ? ' sel' : '');
+      b.innerHTML = '<span class="no"></span><span><div class="name"></div><div class="team"></div></span><span class="radio"></span>';
+      b.querySelector('.no').textContent = w.no;
+      b.querySelector('.name').textContent = w.name;
+      b.querySelector('.team').textContent = w.team;
+      b.addEventListener('click', () => {
+        if (submitting) return;
+        selected = w.label;
+        document.querySelectorAll('.work').forEach(x => x.classList.toggle('sel', x === b));
+        $('btnSubmit').disabled = false;
+        $('btnSubmit').textContent = '確認投票';
+      });
+      box.appendChild(b);
+    });
+    if (selected && !works.some(w => w.label === selected)) {
+      selected = null; $('btnSubmit').disabled = true; $('btnSubmit').textContent = '請先選擇作品';
+    }
+  }
+
+  function setTimer(ms) {
+    clearInterval(timerTimer);
+    if (ms == null) { $('timer').classList.remove('show'); endAt = 0; return; }
+    endAt = Date.now() + ms;
+    $('timer').classList.add('show');
+    const tick = () => {
+      const left = Math.max(0, endAt - Date.now());
+      const s = Math.ceil(left / 1000);
+      $('timerText').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+      $('timer').classList.toggle('urgent', s <= 30);
+      if (left <= 0) {
+        clearInterval(timerTimer);
+        if (!submitting && $('s-vote').classList.contains('active')) showClosed('時間到', '投票時間已結束，謝謝參與。');
+      }
+    };
+    tick();
+    timerTimer = setInterval(tick, 250);
+  }
+
+  function showDone(label, already) {
+    setTimer(null);
+    $('doneTitle').textContent = already ? '你已經投過票了' : '投票成功！';
+    $('donePick').textContent = '你投給：' + label.replace(/^[^｜]*｜/, '');
+    show('s-done');
+  }
+  function showClosed(title, msg) { $('closedTitle').textContent = title; $('closedMsg').textContent = msg; show('s-closed'); }
+
+  async function refresh() {
+    try { apply(await callRetry('getBallot', [], null, 3)); }
+    catch (e) {
+      if (ballot && ballot.phase === 'waiting') pollTimer = setTimeout(refresh, 8000 + Math.random() * 4000);
+      else show('s-error');
+    }
+  }
+
+  async function submit() {
+    if (!selected || submitting) return;
+    submitting = true;
+    const btn = $('btnSubmit');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>送出中…';
+    $('statusLine').textContent = '';
+    try {
+      const res = await callRetry('submitVote', [deviceId, selected], n => {
+        $('statusLine').textContent = '現場人數較多，正在幫你排隊送出（第 ' + n + ' 次）…請不要關閉畫面';
+      });
+      if (res.ok) { store(votedKey(), res.label); showDone(res.label, false); }
+      else if (res.reason === 'already') { store(votedKey(), res.label || selected); showDone(res.label || selected, true); }
+      else if (res.reason === 'timeup' || res.reason === 'closed') showClosed('投票已截止', '很抱歉，這一票送出時投票已經結束。');
+      else if (res.reason === 'waiting') { show('s-waiting'); refresh(); }
+      else if (res.reason === 'invalid') { $('statusLine').textContent = '作品清單有更新，請重新選擇'; selected = null; await refresh(); }
+      else { $('statusLine').textContent = '送出失敗，請再按一次'; }
+    } catch (e) {
+      $('statusLine').textContent = '網路不穩，送出失敗，請再按一次「確認投票」';
+    } finally {
+      submitting = false;
+      if ($('s-vote').classList.contains('active')) {
+        btn.disabled = !selected;
+        btn.textContent = selected ? '確認投票' : '請先選擇作品';
+      }
+    }
+  }
+
+  $('btnSubmit').addEventListener('click', submit);
+  $('btnRefresh').addEventListener('click', () => { clearTimeout(pollTimer); refresh(); });
+  $('btnRetryLoad').addEventListener('click', () => { show('s-loading'); refresh(); });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && ballot && ballot.phase === 'waiting') { clearTimeout(pollTimer); refresh(); }
+  });
+
+  window.__vote__ = { get deviceId() { return deviceId; } };
+  if (ballot) apply(ballot); else refresh();
+})();
+</script>
+</body>
+</html>
